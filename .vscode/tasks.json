@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run in vscode",
+      "type": "shell",
+      "command": "air",
+      "isBackground": true
+    },
+    {
+      "label": "Run in iTerm",
+      "type": "process",
+      "command": "osascript",
+      "args": [
+          "-e",
+          "tell application \"iTerm\"",
+          "-e", "activate",
+          "-e", "set newWindow to (create window with default profile)",
+          "-e", "tell current session of newWindow",
+          "-e", "write text \"cd '${workspaceFolder}' && air\"",
+          "-e", "end tell",
+          "-e", "end tell"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "never"
+      }
+    },
+  ]
+}

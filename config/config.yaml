@@ -1,0 +1,26 @@
+server:
+  port: "8090"
+  mode: "debug"
+  timeout: 30
+  cors_allowed: "*"
+
+database:
+  host: "127.0.0.1"
+  port: "3306"
+  user: "root"
+  password: "mysql123"
+  name: "gin_db"
+  max_idle_conns: 10
+  max_conns: 100
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 1
+
+jwt:
+  secret_key: "sb3MRHerqNjqjOp0xgAPQPCl6HF3dy5z"
+  expires_in: 604800 # seconds (7 days)
+
+snowflake:
+  node_id: 1 # 节点ID，范围 0-1023，多实例部署时每个实例使用不同的 node_id
