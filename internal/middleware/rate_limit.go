@@ -20,7 +20,7 @@ type RateLimitConfig struct {
 
 // DefaultIPRateLimit IP 限流配置（防止单个 IP 暴力破解）
 var DefaultIPRateLimit = RateLimitConfig{
-	MaxAttempts:    30,
+	MaxAttempts:    10,
 	LockDuration:   30 * time.Minute,
 	WindowDuration: 1 * time.Minute,
 }

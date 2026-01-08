@@ -161,13 +161,12 @@ func registerRoutes(r *gin.Engine, appCtx *AppContext) {
 			userHandler := appCtx.GetUserHandler()
 			userGroup := protected.Group("/user")
 			{
-				userGroup.POST("/list", userHandler.ListUsers)          // 获取用户列表
-				userGroup.POST("/create", userHandler.CreateUser)       // 创建用户
-				userGroup.POST("/me", userHandler.GetCurrentUser)       // 获取当前用户
-				userGroup.POST("/info", userHandler.GetUserByID)        // 获取指定用户
-				userGroup.POST("/update", userHandler.UpdateUser)       // 更新用户
-				userGroup.POST("/delete", userHandler.DeleteUser)       // 删除用户
-				userGroup.POST("/password", userHandler.UpdatePassword) // 更新密码
+				userGroup.POST("/me", userHandler.GetCurrentUser) // 获取当前用户
+				userGroup.POST("/list", userHandler.ListUsers)    // 获取用户列表
+				userGroup.POST("/create", userHandler.CreateUser) // 创建用户
+				userGroup.POST("/info", userHandler.GetUserByID)  // 获取指定用户
+				userGroup.POST("/update", userHandler.UpdateUser) // 更新用户
+				userGroup.POST("/delete", userHandler.DeleteUser) // 删除用户
 			}
 		}
 	}

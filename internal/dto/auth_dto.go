@@ -1,8 +1,6 @@
 package dto
 
 import (
-	"time"
-
 	"github.com/yuhang1130/gin-server/internal/model"
 )
 
@@ -28,9 +26,9 @@ type Tenant struct {
 // LoginResponse 登录响应
 type LoginResponse struct {
 	AccessToken          string        `json:"access_token"`
-	AccessTokenExpiresAt time.Time     `json:"access_token_expires_at"`
+	AccessTokenExpiresAt int64         `json:"access_token_expires_at"`
 	User                 *UserResponse `json:"user"`
-	CurrentTenant        Tenant        `jsonL:"current_tenant"`
+	CurrentTenant        Tenant        `json:"current_tenant"`
 	Tenants              []Tenant      `json:"tenants"`
 	IsGlobalAdmin        bool          `json:"is_global_admin"`
 }

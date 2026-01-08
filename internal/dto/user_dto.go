@@ -1,8 +1,6 @@
 package dto
 
 import (
-	"time"
-
 	"github.com/yuhang1130/gin-server/internal/model"
 )
 
@@ -13,8 +11,8 @@ type UserResponse struct {
 	Email     string           `json:"email,omitempty"`
 	Role      model.UserRoles  `json:"role"`
 	Status    model.UserStatus `json:"status"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
+	CreatedAt int64            `json:"created_at"`
+	UpdatedAt int64            `json:"updated_at"`
 }
 
 // CreateUserRequest 创建用户请求（管理员创建用户）

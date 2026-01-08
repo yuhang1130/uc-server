@@ -23,6 +23,7 @@ type UserService interface {
 	GetUserByEmail(ctx *gin.Context, email string) (*model.User, error)
 	ListUsers(ctx *gin.Context, page, pageSize int) ([]*model.User, int, error)
 	ListUsersWithFilter(ctx *gin.Context, filter *repository.UserListFilter) ([]*model.User, int, error)
+	ChangePassword(ctx *gin.Context, userID uint64, oldPassword, newPassword string) error
 }
 
 // userService 用户服务实现
@@ -204,4 +205,44 @@ func (s *userService) ListUsersWithFilter(ctx *gin.Context, filter *repository.U
 	}
 
 	return users, total, nil
+}
+
+// ChangePassword 修改用户密码
+func (s *userService) ChangePassword(ctx *gin.Context, userID uint64, oldPassword, newPassword string) error {
+	// 获取用户信息
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		s.logger.Error("Failed to find user", zap.Error(err), zap.Uint64("userID", userID))
+		return errors.New("user not found")
+	}
+
+	// 验证旧密码
+	if !user.CheckPassword(oldPassword) {
+		s.logger.Warn("Old password is incorrect", zap.Uint64("userID", userID))
+		return errors.New("old password is incorrect")
+	}
+
+	// 检查新密码是否与旧密码相同
+	if oldPassword == newPassword {
+		s.logger.Warn("新密码与旧密码相同",
+			zap.Uint64("user_id", user.ID),
+			zap.String("username", user.Username),
+		)
+		return errors.New("The new password cannot be the same as the old one")
+	}
+
+	// 设置新密码
+	if err := user.SetPassword(newPassword); err != nil {
+		s.logger.Error("Failed to set new password", zap.Error(err))
+		return errors.New("failed to set new password")
+	}
+
+	// 更新用户
+	if err := s.userRepo.Update(user); err != nil {
+		s.logger.Error("Failed to update user password", zap.Error(err), zap.Uint64("userID", userID))
+		return errors.New("failed to update user password")
+	}
+
+	s.logger.Info("Password changed successfully", zap.Uint64("userID", user.ID))
+	return nil
 }

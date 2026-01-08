@@ -65,5 +65,5 @@ func (r *tenantUserRepository) FindUserTenantsWithTenant(userID uint64) ([]*Tena
 func (r *tenantUserRepository) UpdateLastLoginAt(tenantID, userID uint64) error {
 	return r.DB.Model(&model.TenantUser{}).
 		Where("tenant_id = ? AND user_id = ?", tenantID, userID).
-		Update("last_login_at", gorm.Expr("NOW()")).Error
+		Update("last_login_at", gorm.Expr("UNIX_TIMESTAMP(NOW()) * 1000")).Error
 }

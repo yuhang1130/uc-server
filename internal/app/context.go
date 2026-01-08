@@ -232,6 +232,7 @@ func (ctx *AppContext) GetAuthHandler() *handler.AuthHandler {
 			ctx.Redis,
 			ctx.Config,
 			ctx.zapLogger,
+			ctx.GetAuthCache(),
 		)
 	})
 	return ctx.authHandler

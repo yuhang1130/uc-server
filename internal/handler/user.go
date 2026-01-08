@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yuhang1130/gin-server/internal/dto"
 	"github.com/yuhang1130/gin-server/internal/model"
+	"github.com/yuhang1130/gin-server/internal/pkg/cache"
 	"github.com/yuhang1130/gin-server/internal/pkg/response"
 	"github.com/yuhang1130/gin-server/internal/repository"
 	"github.com/yuhang1130/gin-server/internal/service"
@@ -323,7 +324,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	// 从上下文中获取当前用户
-	user, exists := c.Get("currentUser")
+	userSessionData, exists := c.Get("userSessionData")
 	if !exists {
 		h.logger.Warn("获取当前用户失败：未认证",
 			zap.String("client_ip", c.ClientIP()),
@@ -332,7 +333,8 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	currentUser, ok := user.(*model.User)
+	currentUser, ok := userSessionData.(*cache.UserSessionData)
+
 	if !ok {
 		h.logger.Error("获取当前用户失败：类型断言失败",
 			zap.String("client_ip", c.ClientIP()),
@@ -342,99 +344,9 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	}
 
 	h.logger.Info("获取当前用户成功",
-		zap.Uint64("user_id", currentUser.ID),
-		zap.String("username", currentUser.Username),
+		zap.Uint64("user_id", currentUser.UserID),
+		zap.String("username", currentUser.User.Username),
 	)
 
-	// 构建响应
-	userResp := &dto.UserResponse{
-		ID:        currentUser.ID,
-		Username:  currentUser.Username,
-		Email:     currentUser.Email,
-		Role:      currentUser.Role,
-		CreatedAt: currentUser.CreatedAt,
-		UpdatedAt: currentUser.UpdatedAt,
-	}
-
-	response.Success(c, userResp)
-}
-
-func (h *UserHandler) UpdatePassword(c *gin.Context) {
-	// 从上下文中获取当前用户
-	user, exists := c.Get("currentUser")
-	if !exists {
-		h.logger.Warn("更新密码失败：未认证",
-			zap.String("client_ip", c.ClientIP()),
-		)
-		response.Unauthorized(c, "User not authenticated")
-		return
-	}
-
-	currentUser, ok := user.(*model.User)
-	if !ok {
-		h.logger.Error("更新密码失败：类型断言失败",
-			zap.String("client_ip", c.ClientIP()),
-		)
-		response.InternalServerError(c, "Failed to get current user")
-		return
-	}
-
-	// 绑定请求参数
-	var req dto.UpdatePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.Warn("更新密码请求参数无效",
-			zap.Uint64("user_id", currentUser.ID),
-			zap.String("error", err.Error()),
-			zap.String("client_ip", c.ClientIP()),
-		)
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	h.logger.Info("收到更新密码请求",
-		zap.Uint64("user_id", currentUser.ID),
-		zap.String("username", currentUser.Username),
-		zap.String("client_ip", c.ClientIP()),
-	)
-
-	// 验证旧密码
-	if !currentUser.CheckPassword(req.OldPassword) {
-		h.logger.Warn("更新密码失败：旧密码错误",
-			zap.Uint64("user_id", currentUser.ID),
-			zap.String("username", currentUser.Username),
-			zap.String("client_ip", c.ClientIP()),
-		)
-		response.BadRequest(c, "Old password is incorrect")
-		return
-	}
-
-	// 设置新密码
-	if err := currentUser.SetPassword(req.NewPassword); err != nil {
-		h.logger.Error("新密码加密失败",
-			zap.Uint64("user_id", currentUser.ID),
-			zap.String("username", currentUser.Username),
-			zap.Error(err),
-		)
-		response.InternalServerError(c, "Failed to hash new password")
-		return
-	}
-
-	// 更新用户
-	if err := h.userService.UpdateUser(c, currentUser.ID, currentUser); err != nil {
-		h.logger.Error("更新密码失败",
-			zap.Uint64("user_id", currentUser.ID),
-			zap.String("username", currentUser.Username),
-			zap.Error(err),
-		)
-		response.InternalServerError(c, "Failed to update password")
-		return
-	}
-
-	h.logger.Info("密码更新成功",
-		zap.Uint64("user_id", currentUser.ID),
-		zap.String("username", currentUser.Username),
-		zap.String("client_ip", c.ClientIP()),
-	)
-
-	response.Success(c, gin.H{"message": "Password updated successfully"})
+	response.Success(c, currentUser)
 }

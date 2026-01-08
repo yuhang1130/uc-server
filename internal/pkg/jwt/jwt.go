@@ -35,7 +35,7 @@ func NewJWTUtil(secretKey string, expiresIn int) *JWTUtil {
 }
 
 // GenerateAccessToken 生成访问令牌
-func (j *JWTUtil) GenerateAccessToken(userID uint64, tenantID uint64, role model.UserRoles) (string, string, time.Time, error) {
+func (j *JWTUtil) GenerateAccessToken(userID uint64, tenantID uint64, role model.UserRoles) (string, string, int64, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:   userID,
@@ -50,7 +50,7 @@ func (j *JWTUtil) GenerateAccessToken(userID uint64, tenantID uint64, role model
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	accessToken, err := token.SignedString([]byte(j.secretKey))
-	return claims.ID, accessToken, claims.ExpiresAt.Time, err
+	return claims.ID, accessToken, claims.ExpiresAt.UnixMilli(), err
 }
 
 // GenerateRefreshToken 生成刷新令牌
@@ -107,5 +107,10 @@ func GenerateTokenID() string {
 
 // GenerateTokenIDFromToken 从token生成token ID
 func GenerateTokenIDFromToken(tokenString string) string {
-	return "token-" + tokenString[:10]
+	// 确保token字符串长度足够，避免切片越界
+	length := len(tokenString)
+	if length > 10 {
+		length = 10
+	}
+	return "token-" + tokenString[:length]
 }

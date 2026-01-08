@@ -2,9 +2,12 @@ package cache
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
+	"github.com/yuhang1130/gin-server/internal/pkg/jwt"
 	"github.com/yuhang1130/gin-server/internal/pkg/utils"
 	"go.uber.org/zap"
 )
@@ -12,6 +15,7 @@ import (
 const (
 	// 缓存键前缀
 	authEmailCachePrefix = "auth:email:verifyCode:"
+	blacklistPrefix      = "blacklist:"
 
 	// 默认过期时间
 	defaultVerifyCodeTTL = 5 * time.Minute
@@ -76,4 +80,44 @@ func (ac *AuthCache) ValidateVerifyCode(ctx context.Context, email string, code 
 		return true
 	}
 	return false
+}
+
+// AddToBlacklistByTokenString 将token加入黑名单（使用token字符串的hash）
+func (ac *AuthCache) AddToBlacklistByTokenString(ctx context.Context, tokenString string, ttl time.Duration) error {
+	tokenKey := ac.generateAccessTokenKeyByHash(tokenString)
+	return ac.redis.Set(ctx, tokenKey, "true", ttl)
+}
+
+// IsInBlacklistByTokenString 检查token是否在黑名单中（使用token字符串的hash）
+func (ac *AuthCache) IsInBlacklistByTokenString(ctx context.Context, tokenString string) (bool, error) {
+	tokenKey := ac.generateAccessTokenKeyByHash(tokenString)
+	result, err := ac.redis.Get(ctx, tokenKey)
+	if err != nil {
+		return false, err
+	}
+	return result == "true", nil
+}
+
+// AddToBlacklistByTokenID 将token加入黑名单（使用tokenID）
+func (ac *AuthCache) AddToBlacklistByTokenID(ctx context.Context, tokenString string, ttl time.Duration) error {
+	tokenID := jwt.GenerateTokenIDFromToken(tokenString)
+	tokenKey := blacklistPrefix + tokenID
+	return ac.redis.Set(ctx, tokenKey, "true", ttl)
+}
+
+// IsInBlacklistByTokenID 检查token是否在黑名单中（使用tokenID）
+func (ac *AuthCache) IsInBlacklistByTokenID(ctx context.Context, tokenString string) (bool, error) {
+	tokenID := jwt.GenerateTokenIDFromToken(tokenString)
+	tokenKey := blacklistPrefix + tokenID
+	result, err := ac.redis.Get(ctx, tokenKey)
+	if err != nil {
+		return false, err
+	}
+	return result == "true", nil
+}
+
+// generateAccessTokenKeyByHash 生成访问令牌的键名（使用token字符串的hash）
+func (ac *AuthCache) generateAccessTokenKeyByHash(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return blacklistPrefix + hex.EncodeToString(hash[:16])
 }

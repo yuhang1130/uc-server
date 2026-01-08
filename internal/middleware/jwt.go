@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -19,6 +18,8 @@ type AppContextProvider interface {
 	GetUserService() service.UserService
 	GetRedisClient() *redis.Client
 	GetUserCache() *cache.UserCache
+	GetAuthCache() *cache.AuthCache
+	GetAuthService() service.AuthService
 }
 
 // JWTAuthMiddleware JWT认证中间件
@@ -43,10 +44,9 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		tokenString := tokenParts[1]
 
 		// 检查token是否在黑名单中
-		tokenID := jwt.GenerateTokenIDFromToken(tokenString)
-		redisClient := appCtx.GetRedisClient()
-		isBlacklisted, err := redisClient.Get(c, "blacklist:"+tokenID).Result()
-		if err == nil && isBlacklisted == "true" {
+		authCache := appCtx.GetAuthCache()
+		isBlacklisted, err := authCache.IsInBlacklistByTokenID(c, tokenString)
+		if err == nil && isBlacklisted {
 			response.Unauthorized(c, "Token has been revoked")
 			c.Abort()
 			return
@@ -71,29 +71,18 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		// 将用户信息放入上下文
 		c.Set("userID", claims.UserID)
 		c.Set("userRole", claims.Role)
+		c.Set("tenantID", claims.TenantID)
 
-		// 使用 Redis 缓存优化：先尝试从缓存获取用户信息
-		userCache := appCtx.GetUserCache()
-		user, err := userCache.GetUserSession(c, claims.UserID, claims.ID)
-
-		// 缓存未命中，从数据库加载并写入缓存
+		// 使用 AppContext 中的单例 AuthService 获取用户完整信息
+		authService := appCtx.GetAuthService()
+		userSessionData, err := authService.GetUserSessionData(c, claims.UserID, claims.TenantID, claims.ID)
 		if err != nil {
-			userService := appCtx.GetUserService()
-			user, err := userService.GetUserByID(c, claims.UserID)
-			if err != nil {
-				response.Unauthorized(c, "User not found")
-				c.Abort()
-				return
-			}
-
-			// 异步写入缓存，不阻塞请求
-			go func() {
-				ctx := context.Background()
-				_ = userCache.SetUser(ctx, user)
-			}()
+			response.Unauthorized(c, "Failed to get user session data")
+			c.Abort()
+			return
 		}
 
-		c.Set("currentUser", user)
+		c.Set("userSessionData", userSessionData)
 
 		c.Next()
 	}

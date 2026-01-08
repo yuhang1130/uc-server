@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/yuhang1130/gin-server/internal/dto"
 	"github.com/yuhang1130/gin-server/internal/model"
 )
 
@@ -29,6 +30,19 @@ const (
 	defaultClientIPLoginTL       = 10 * time.Minute // 默认时间窗户
 	defaultClientIPLoginLockedTL = 15 * time.Minute // 默认锁定时间
 )
+
+// UserSessionData 用户会话数据结构，用于缓存用户登录会话
+type UserSessionData struct {
+	UserID        uint64            `json:"user_id"`
+	User          *dto.UserResponse `json:"user"`
+	TenantID      uint64            `json:"tenant_id"`
+	TenantName    string            `json:"tenant_name"`
+	Role          string            `json:"role"`
+	Tenants       []dto.Tenant      `json:"tenants"`
+	IsGlobalAdmin bool              `json:"is_global_admin"`
+	IsProxy       bool              `json:"is_proxy"`      // 是否是代理token
+	ProxyUserID   uint64            `json:"proxy_user_id"` // 被代理用户ID
+}
 
 // UserCache 用户缓存操作
 type UserCache struct {
@@ -116,7 +130,7 @@ func (uc *UserCache) DeleteUserToken(ctx context.Context, tokenType string, iden
 }
 
 // SetUserSession 设置用户会话（用于记录登录状态）
-func (uc *UserCache) SetUserSession(ctx context.Context, userID uint64, sessionID string, data interface{}) error {
+func (uc *UserCache) SetUserSession(ctx context.Context, userID uint64, sessionID string, data *UserSessionData) error {
 	// 设置会话数据
 	key := fmt.Sprintf("%s%d:%s", userSessionPrefix, userID, sessionID)
 	if err := uc.redis.SetJSON(ctx, key, data, defaultSessionTTL); err != nil {
@@ -134,14 +148,14 @@ func (uc *UserCache) SetUserSession(ctx context.Context, userID uint64, sessionI
 }
 
 // GetUserSession 获取用户会话
-func (uc *UserCache) GetUserSession(ctx context.Context, userID uint64, sessionID string) (map[string]interface{}, error) {
+func (uc *UserCache) GetUserSession(ctx context.Context, userID uint64, sessionID string) (*UserSessionData, error) {
 	key := fmt.Sprintf("%s%d:%s", userSessionPrefix, userID, sessionID)
-	var session map[string]interface{}
+	var session UserSessionData
 	err := uc.redis.GetJSON(ctx, key, &session)
 	if err != nil {
 		return nil, err
 	}
-	return session, nil
+	return &session, nil
 }
 
 // DeleteUserSession 删除用户会话

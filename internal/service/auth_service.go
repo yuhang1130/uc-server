@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -17,8 +18,8 @@ import (
 const (
 	// 用户名限流配置
 	usernameRateLimitMaxAttempts  = 5                // 最大尝试次数
-	usernameRateLimitLockDuration = 15 * time.Minute // 锁定时长
-	usernameRateLimitWindowSize   = 5 * time.Minute  // 时间窗口
+	usernameRateLimitLockDuration = 30 * time.Minute // 锁定时长
+	usernameRateLimitWindowSize   = 1 * time.Minute  // 时间窗口
 )
 
 // AuthService 认证服务接口
@@ -26,6 +27,7 @@ type AuthService interface {
 	Login(ctx *gin.Context, username, password string) (*dto.LoginResponse, error)
 	GetTokenExpiry(tokenString string) (time.Time, error)
 	RevokeAllUserSessions(ctx *gin.Context, userID uint64) error
+	GetUserSessionData(ctx *gin.Context, userID, tenantID uint64, claimsID string) (*cache.UserSessionData, error)
 }
 
 // authService 认证服务实现
@@ -36,16 +38,6 @@ type authService struct {
 	authCache      *cache.AuthCache
 	userCache      *cache.UserCache
 	logger         *zap.Logger
-}
-
-// userSessionData 用户会话数据
-type userSessionData struct {
-	UserID        uint64       `json:"user_id"`
-	TenantID      uint64       `json:"tenant_id"`
-	TenantName    string       `json:"tenant_name"`
-	Role          string       `json:"role"`
-	Tenants       []dto.Tenant `json:"tenants"`
-	IsGlobalAdmin bool         `json:"is_global_admin"`
 }
 
 // NewAuthService 创建认证服务实例
@@ -132,14 +124,24 @@ func (s *authService) handleSystemAdminLogin(ctx *gin.Context, user *model.User)
 	loginResp := &dto.LoginResponse{
 		AccessToken:          accessToken,
 		AccessTokenExpiresAt: expiresAt,
-		User:                 s.buildUserResponse(user, user.Role),
+		User:                 s.buildUserResponse(user),
 		CurrentTenant:        dto.Tenant{},
 		Tenants:              []dto.Tenant{},
 		IsGlobalAdmin:        true,
 	}
 
 	// 预热用户缓存
-	s.warmUpUserCache(ctx, user.ID, claimsID, 1, "", string(user.Role), []dto.Tenant{}, true)
+	s.WarmUpUserCache(ctx, claimsID, &cache.UserSessionData{
+		UserID:        user.ID,
+		User:          s.buildUserResponse(user),
+		TenantID:      1,
+		TenantName:    "",
+		Role:          string(user.Role),
+		Tenants:       []dto.Tenant{},
+		IsGlobalAdmin: true,
+		IsProxy:       false,
+		ProxyUserID:   0,
+	})
 
 	return loginResp, nil
 }
@@ -179,7 +181,7 @@ func (s *authService) handleTenantUserLogin(ctx *gin.Context, user *model.User) 
 	loginResp := &dto.LoginResponse{
 		AccessToken:          accessToken,
 		AccessTokenExpiresAt: expiresAt,
-		User:                 s.buildUserResponse(user, user.Role),
+		User:                 s.buildUserResponse(user),
 		CurrentTenant: dto.Tenant{
 			TenantID:   selectedTenant.TenantID,
 			TenantName: selectedTenant.Tenant.TenantName,
@@ -190,18 +192,29 @@ func (s *authService) handleTenantUserLogin(ctx *gin.Context, user *model.User) 
 	}
 
 	// 预热用户缓存
-	s.warmUpUserCache(ctx, user.ID, claimsID, selectedTenant.TenantID, selectedTenant.Tenant.TenantName, selectedTenant.Role, tenants, false)
+	s.WarmUpUserCache(ctx, claimsID, &cache.UserSessionData{
+		UserID: user.ID,
+		User:   s.buildUserResponse(user),
+
+		TenantID:      selectedTenant.TenantID,
+		TenantName:    selectedTenant.Tenant.TenantName,
+		Role:          selectedTenant.Role,
+		Tenants:       tenants,
+		IsGlobalAdmin: false,
+		IsProxy:       false,
+		ProxyUserID:   0,
+	})
 
 	return loginResp, nil
 }
 
 // buildUserResponse 构建用户响应数据
-func (s *authService) buildUserResponse(user *model.User, role model.UserRoles) *dto.UserResponse {
+func (s *authService) buildUserResponse(user *model.User) *dto.UserResponse {
 	return &dto.UserResponse{
 		ID:        user.ID,
 		Username:  user.Username,
 		Email:     user.Email,
-		Role:      role,
+		Role:      user.Role,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
@@ -221,34 +234,20 @@ func (s *authService) buildTenantList(tenantUsers []*repository.TenantUserWithTe
 	return tenants
 }
 
-// warmUpUserCache 预热用户缓存
-func (s *authService) warmUpUserCache(
+// WarmUpUserCache 预热用户缓存
+func (s *authService) WarmUpUserCache(
 	ctx *gin.Context,
-	userID uint64,
 	claimsID string,
-	tenantID uint64,
-	tenantName string,
-	role string,
-	tenants []dto.Tenant,
-	isGlobalAdmin bool,
+	sessionData *cache.UserSessionData,
 ) {
 	if s.userCache == nil {
 		return
 	}
 
-	sessionData := &userSessionData{
-		UserID:        userID,
-		TenantID:      tenantID,
-		TenantName:    tenantName,
-		Role:          role,
-		Tenants:       tenants,
-		IsGlobalAdmin: isGlobalAdmin,
-	}
-
-	if err := s.userCache.SetUserSession(ctx, userID, claimsID, sessionData); err != nil {
+	if err := s.userCache.SetUserSession(ctx, sessionData.UserID, claimsID, sessionData); err != nil {
 		s.logger.Warn("Failed to warm up user cache after login",
 			zap.Error(err),
-			zap.Uint64("userID", userID))
+			zap.Uint64("userID", sessionData.UserID))
 	}
 }
 
@@ -431,12 +430,12 @@ func (s *authService) selectMostRecentTenant(tenants []*repository.TenantUserWit
 	var (
 		hasLoginRecord []*repository.TenantUserWithTenant
 		noLoginRecord  []*repository.TenantUserWithTenant
-		zeroTime       = time.Time{}
+		zeroTime       = int64(0)
 	)
 
 	// 分类：有登录记录 vs 无登录记录
 	for _, tu := range tenants {
-		if tu.LastLoginAt.IsZero() || tu.LastLoginAt.Equal(zeroTime) {
+		if tu.LastLoginAt == zeroTime {
 			noLoginRecord = append(noLoginRecord, tu)
 		} else {
 			hasLoginRecord = append(hasLoginRecord, tu)
@@ -447,7 +446,7 @@ func (s *authService) selectMostRecentTenant(tenants []*repository.TenantUserWit
 	if len(hasLoginRecord) > 0 {
 		mostRecent := hasLoginRecord[0]
 		for _, tu := range hasLoginRecord[1:] {
-			if tu.LastLoginAt.After(mostRecent.LastLoginAt) {
+			if tu.LastLoginAt > mostRecent.LastLoginAt {
 				mostRecent = tu
 			}
 		}
@@ -457,9 +456,95 @@ func (s *authService) selectMostRecentTenant(tenants []*repository.TenantUserWit
 	// 如果都没有登录记录，选择最早加入的租户
 	earliest := noLoginRecord[0]
 	for _, tu := range noLoginRecord[1:] {
-		if tu.CreatedAt.Before(earliest.CreatedAt) {
+		if tu.CreatedAt < earliest.CreatedAt {
 			earliest = tu
 		}
 	}
 	return earliest
+}
+
+// GetUserSessionData 获取用户会话数据
+func (s *authService) GetUserSessionData(ctx *gin.Context, userID, tenantID uint64, claimsID string) (*cache.UserSessionData, error) {
+	// 首先尝试从缓存获取
+	sessionData, err := s.getCachedUserSessionData(ctx, userID, claimsID)
+	if err == nil && sessionData != nil {
+		return sessionData, nil
+	}
+
+	// 缓存未命中，从数据库加载
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	// 获取用户租户信息
+	tenantUsers, err := s.tenantUserRepo.FindUserTenantsWithTenant(userID)
+	if err != nil {
+		s.logger.Warn("Failed to get user tenants", zap.Uint64("user_id", userID), zap.Error(err))
+		// 继续执行，可能用户是系统管理员
+	}
+
+	// 构建租户列表
+	var tenants []dto.Tenant
+	var tenantName string
+	var role string
+	var isGlobalAdmin = false
+
+	if tenantUsers != nil {
+		tenants = s.buildTenantList(tenantUsers)
+
+		// 查找当前租户的信息
+		for _, tu := range tenantUsers {
+			if tu.TenantID == tenantID {
+				tenantName = tu.Tenant.TenantName
+				role = tu.Role
+				break
+			}
+		}
+	}
+
+	// 检查是否为系统管理员
+	if user.Role == model.UserRoleAdminSystem {
+		isGlobalAdmin = true
+		role = string(user.Role)
+	}
+	user.Role = model.UserRoles(role)
+
+	sessionData = &cache.UserSessionData{
+		UserID:        userID,
+		User:          s.buildUserResponse(user),
+		TenantID:      tenantID,
+		TenantName:    tenantName,
+		Role:          role,
+		Tenants:       tenants,
+		IsGlobalAdmin: isGlobalAdmin,
+		IsProxy:       false,
+		ProxyUserID:   0,
+	}
+
+	// 异步缓存用户数据
+	go func() {
+		if err := s.userCache.SetUserSession(context.Background(), userID, claimsID, sessionData); err != nil {
+			s.logger.Warn("Failed to cache user session data",
+				zap.Uint64("user_id", userID),
+				zap.Error(err))
+		}
+	}()
+
+	return sessionData, nil
+}
+
+// getCachedUserSessionData 从缓存获取用户会话数据
+func (s *authService) getCachedUserSessionData(ctx *gin.Context, userID uint64, claimsID string) (*cache.UserSessionData, error) {
+	if s.userCache == nil {
+		return nil, errors.New("user cache not available")
+	}
+
+	// 直接获取 UserSessionData 类型，无需类型转换
+	sessionData, err := s.userCache.GetUserSession(ctx, userID, claimsID)
+	if err != nil {
+		return nil, err
+	}
+
+	return sessionData, nil
 }

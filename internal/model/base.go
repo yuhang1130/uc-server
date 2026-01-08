@@ -9,14 +9,14 @@ import (
 
 // BaseModel 通用基础模型
 type BaseModel struct {
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+	CreatedAt int64  `json:"created_at"`
+	UpdatedAt int64  `json:"updated_at"`
+	DeletedAt *int64 `gorm:"index" json:"deleted_at,omitempty"`
 }
 
 // BeforeCreate hook before creating record
 func (m *BaseModel) BeforeCreate(tx *gorm.DB) error {
-	now := time.Now()
+	now := time.Now().UnixMilli()
 	m.CreatedAt = now
 	m.UpdatedAt = now
 	return nil
@@ -24,7 +24,7 @@ func (m *BaseModel) BeforeCreate(tx *gorm.DB) error {
 
 // BeforeUpdate hook before updating record
 func (m *BaseModel) BeforeUpdate(tx *gorm.DB) error {
-	m.UpdatedAt = time.Now()
+	m.UpdatedAt = time.Now().UnixMilli()
 	return nil
 }
 
@@ -45,7 +45,7 @@ type IDBaseModel struct {
 
 // BeforeCreate hook before creating record with ID
 func (m *IDBaseModel) BeforeCreate(tx *gorm.DB) error {
-	now := time.Now()
+	now := time.Now().UnixMilli()
 	m.CreatedAt = now
 	m.UpdatedAt = now
 	if m.ID == 0 {
