@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/yuhang1130/gin-server/internal/dto"
 	"github.com/yuhang1130/gin-server/internal/model"
@@ -10,6 +12,8 @@ import (
 	"github.com/yuhang1130/gin-server/internal/service"
 	"go.uber.org/zap"
 )
+
+const invalidRequestPrefix = "Invalid request: "
 
 // UserHandler 用户处理器
 type UserHandler struct {
@@ -32,7 +36,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			zap.String("error", err.Error()),
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		response.ValidationErrorFunc(c, invalidRequestPrefix+err.Error())
 		return
 	}
 
@@ -61,7 +65,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			zap.String("username", req.Username),
 			zap.Error(err),
 		)
-		response.InternalServerError(c, "Failed to hash password")
+		response.InternalServerErrorFunc(c, "Failed to hash password")
 		return
 	}
 
@@ -72,7 +76,12 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			zap.String("email", req.Email),
 			zap.Error(err),
 		)
-		response.BadRequest(c, "Failed to create user: "+err.Error())
+		// 根据错误类型返回不同的状态码
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "exists") {
+			response.UserAlreadyExistsErrorFunc(c, "Failed to create user: "+err.Error())
+		} else {
+			response.DBOperationFailedFunc(c, "Failed to create user: "+err.Error())
+		}
 		return
 	}
 
@@ -93,7 +102,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		UpdatedAt: user.UpdatedAt,
 	}
 
-	response.Success(c, userResp)
+	response.SuccessFunc(c, userResp)
 }
 
 func (h *UserHandler) ListUsers(c *gin.Context) {
@@ -103,7 +112,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 			zap.String("error", err.Error()),
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		response.BadRequestFunc(c, invalidRequestPrefix+err.Error())
 		return
 	}
 
@@ -134,7 +143,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 			zap.String("role", string(req.Role)),
 			zap.Error(err),
 		)
-		response.InternalServerError(c, "Failed to get user list: "+err.Error())
+		response.InternalServerErrorFunc(c, "Failed to get user list: "+err.Error())
 		return
 	}
 
@@ -159,7 +168,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 	// 计算总页数
 	totalPages := (total + req.PageSize - 1) / req.PageSize
 
-	response.Success(c, &dto.ListUsersResponse{
+	response.SuccessFunc(c, &dto.ListUsersResponse{
 		Users:      userResponses,
 		Total:      total,
 		Page:       req.Page,
@@ -175,7 +184,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 			zap.String("error", err.Error()),
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		response.ValidationErrorFunc(c, invalidRequestPrefix+err.Error())
 		return
 	}
 
@@ -191,7 +200,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 			zap.Uint64("user_id", req.ID),
 			zap.Error(err),
 		)
-		response.NotFound(c, "User not found")
+		response.UserNotFoundErrorFunc(c, "User not found")
 		return
 	}
 
@@ -210,7 +219,7 @@ func (h *UserHandler) GetUserByID(c *gin.Context) {
 		UpdatedAt: user.UpdatedAt,
 	}
 
-	response.Success(c, userResp)
+	response.SuccessFunc(c, userResp)
 }
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
@@ -220,7 +229,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			zap.String("error", err.Error()),
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		response.ValidationErrorFunc(c, invalidRequestPrefix+err.Error())
 		return
 	}
 
@@ -236,7 +245,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			zap.Uint64("user_id", req.ID),
 			zap.Error(err),
 		)
-		response.NotFound(c, "User not found")
+		response.UserNotFoundErrorFunc(c, "User not found")
 		return
 	}
 
@@ -260,7 +269,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			zap.Uint64("user_id", req.ID),
 			zap.Error(err),
 		)
-		response.InternalServerError(c, "Failed to update user: "+err.Error())
+		response.DBOperationFailedFunc(c, "Failed to update user: "+err.Error())
 		return
 	}
 
@@ -279,7 +288,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		UpdatedAt: existingUser.UpdatedAt,
 	}
 
-	response.Success(c, userResp)
+	response.SuccessFunc(c, userResp)
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
@@ -289,7 +298,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 			zap.String("error", err.Error()),
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		response.ValidationErrorFunc(c, invalidRequestPrefix+err.Error())
 		return
 	}
 
@@ -304,13 +313,13 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 			h.logger.Warn("删除用户失败：用户不存在",
 				zap.Uint64("user_id", req.ID),
 			)
-			response.NotFound(c, err.Error())
+			response.UserNotFoundErrorFunc(c, err.Error())
 		} else {
 			h.logger.Error("删除用户失败",
 				zap.Uint64("user_id", req.ID),
 				zap.Error(err),
 			)
-			response.InternalServerError(c, err.Error())
+			response.DBOperationFailedFunc(c, err.Error())
 		}
 		return
 	}
@@ -319,7 +328,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		zap.Uint64("user_id", req.ID),
 	)
 
-	response.Success(c, gin.H{"message": "User deleted successfully"})
+	response.SuccessFunc(c, gin.H{"message": "User deleted successfully"})
 }
 
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
@@ -329,17 +338,16 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 		h.logger.Warn("获取当前用户失败：未认证",
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.Unauthorized(c, "User not authenticated")
+		response.UnauthorizedFunc(c, "User not authenticated")
 		return
 	}
 
 	currentUser, ok := userSessionData.(*cache.UserSessionData)
-
 	if !ok {
 		h.logger.Error("获取当前用户失败：类型断言失败",
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.InternalServerError(c, "Failed to get current user")
+		response.InternalServerErrorFunc(c, "Failed to get current user")
 		return
 	}
 
@@ -348,5 +356,5 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 		zap.String("username", currentUser.User.Username),
 	)
 
-	response.Success(c, currentUser)
+	response.SuccessFunc(c, currentUser.User)
 }

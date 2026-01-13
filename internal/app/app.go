@@ -121,9 +121,14 @@ func setupGinEngine(appCtx *AppContext) *gin.Engine {
 }
 
 func registerRoutes(r *gin.Engine, appCtx *AppContext) {
+	r.NoRoute(func(c *gin.Context) {
+		// 对于其他未找到的路由，继续默认处理
+		response.NotFoundFunc(c, "Not Found")
+	})
+
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
-		response.Success(c, gin.H{
+		response.SuccessFunc(c, gin.H{
 			"status":  "ok",
 			"message": "success",
 			"time":    time.Now().Format("2006-01-02 15:04:05"),

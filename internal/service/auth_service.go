@@ -75,7 +75,7 @@ func (s *authService) Login(ctx *gin.Context, username, password string) (*dto.L
 			s.logger.Warn("Login failed for user. user not found", zap.String("username", username))
 			// 记录失败次数
 			s.recordLoginFailure(ctx, username)
-			return nil, errors.New("invalid credentials")
+			return nil, fmt.Errorf("invalid credentials")
 		}
 	}
 
@@ -84,7 +84,7 @@ func (s *authService) Login(ctx *gin.Context, username, password string) (*dto.L
 		s.logger.Warn("Login failed for user. invalid password", zap.String("username", username))
 		// 记录失败次数
 		s.recordLoginFailure(ctx, username)
-		return nil, errors.New("invalid credentials")
+		return nil, fmt.Errorf("invalid credentials")
 	}
 
 	s.logger.Info("用户认证成功",
@@ -154,7 +154,7 @@ func (s *authService) handleTenantUserLogin(ctx *gin.Context, user *model.User) 
 		s.logger.Warn("User has no active tenants",
 			zap.Uint64("user_id", user.ID),
 			zap.Error(err))
-		return nil, errors.New("user has no active tenants")
+		return nil, fmt.Errorf("user has no active tenants")
 	}
 
 	// 构建租户列表响应
@@ -175,7 +175,7 @@ func (s *authService) handleTenantUserLogin(ctx *gin.Context, user *model.User) 
 	claimsID, accessToken, expiresAt, err := s.jwtUtil.GenerateAccessToken(user.ID, selectedTenant.TenantID, user.Role)
 	if err != nil {
 		s.logger.Error("Failed to generate access token: ", zap.Error(err))
-		return nil, errors.New("failed to generate access token")
+		return nil, fmt.Errorf("failed to generate access token")
 	}
 
 	loginResp := &dto.LoginResponse{

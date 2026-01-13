@@ -32,7 +32,7 @@ func RecoveryMiddleware(logger *zap.Logger) gin.HandlerFunc {
 
 				// 检查是否已经发送过响应,避免重复发送
 				if !c.Writer.Written() {
-					response.InternalServerError(c, "Internal server error")
+					response.InternalServerErrorFunc(c, "Internal server error")
 				}
 
 				// 中断后续处理

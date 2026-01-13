@@ -32,58 +32,73 @@ func IPRateLimiter(userCache *cache.UserCache, config RateLimitConfig) gin.Handl
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
 
-		// 检查 IP 是否被锁定
-		locked, ttl, err := userCache.IsClientIPLocked(c, clientIP)
-		if err != nil {
-			// Redis 错误，允许请求通过（fail-open）
-			c.Next()
+		if handleIPLockCheck(c, userCache, clientIP, config) {
 			return
 		}
 
-		if locked {
-			response.TooManyRequests(c, fmt.Sprintf("IP已被锁定，请在 %d 秒后重试", int(ttl.Seconds())))
-			c.Abort()
-			return
-		}
-
-		// 获取当前 IP 尝试次数
-		attempts, err := userCache.GetClientIPLoginAttempts(c, clientIP)
-		if err != nil {
-			// Redis 错误，允许请求通过
-			c.Next()
-			return
-		}
-
-		// 检查是否超过最大尝试次数
-		if attempts >= uint64(config.MaxAttempts) {
-			// 锁定 IP
-			if err := userCache.LockClientIP(c, clientIP, config.LockDuration); err == nil {
-				response.TooManyRequests(c, fmt.Sprintf("IP登录尝试次数过多，已被锁定 %d 分钟", int(config.LockDuration.Minutes())))
-			} else {
-				response.TooManyRequests(c, "IP登录尝试次数过多")
-			}
-			c.Abort()
-			return
-		}
-
-		// 继续处理请求
 		c.Next()
 
-		// 请求处理完成后，根据响应状态更新计数器
-		// 401 表示认证失败（用户名或密码错误）
-		if c.Writer.Status() == 401 {
-			// 增加 IP 失败次数
-			newAttempts, _ := userCache.IncrementClientIPLoginAttempts(c, clientIP, config.WindowDuration)
+		handlePostRequest(c, userCache, clientIP, config)
+	}
+}
 
-			// 在响应头中添加剩余尝试次数信息
-			remaining := config.MaxAttempts - int(newAttempts)
-			if remaining > 0 {
-				c.Header("X-RateLimit-IP-Remaining", strconv.Itoa(remaining))
-			}
-		} else if c.Writer.Status() == 200 {
-			// 登录成功，清除 IP 失败计数和锁定状态
-			userCache.UnlockClientIP(c, clientIP)
+// handleIPLockCheck 检查IP是否被锁定，并处理相关逻辑
+func handleIPLockCheck(c *gin.Context, userCache *cache.UserCache, clientIP string, config RateLimitConfig) bool {
+	// 检查 IP 是否被锁定
+	locked, ttl, err := userCache.IsClientIPLocked(c, clientIP)
+	if err != nil {
+		// Redis 错误，允许请求通过（fail-open）
+		return false
+	}
+
+	if locked {
+		response.TooManyRequestsFunc(c, fmt.Sprintf("IP已被锁定，请在 %d 秒后重试", int(ttl.Seconds())))
+		c.Abort()
+		return true
+	}
+
+	return handleIPAttemptsCheck(c, userCache, clientIP, config)
+}
+
+// handleIPAttemptsCheck 检查IP尝试次数是否超限
+func handleIPAttemptsCheck(c *gin.Context, userCache *cache.UserCache, clientIP string, config RateLimitConfig) bool {
+	// 获取当前 IP 尝试次数
+	attempts, err := userCache.GetClientIPLoginAttempts(c, clientIP)
+	if err != nil {
+		// Redis 错误，允许请求通过
+		return false
+	}
+
+	// 检查是否超过最大尝试次数
+	if attempts >= uint64(config.MaxAttempts) {
+		// 锁定 IP
+		if err := userCache.LockClientIP(c, clientIP, config.LockDuration); err == nil {
+			response.TooManyRequestsFunc(c, fmt.Sprintf("IP登录尝试次数过多，已被锁定 %d 分钟", int(config.LockDuration.Minutes())))
+		} else {
+			response.TooManyRequestsFunc(c, "IP登录尝试次数过多")
 		}
+		c.Abort()
+		return true
+	}
+
+	return false
+}
+
+// handlePostRequest 在请求处理完成后，根据响应状态更新计数器
+func handlePostRequest(c *gin.Context, userCache *cache.UserCache, clientIP string, config RateLimitConfig) {
+	// 401 表示认证失败（用户名或密码错误）
+	if c.Writer.Status() == 401 {
+		// 增加 IP 失败次数
+		newAttempts, _ := userCache.IncrementClientIPLoginAttempts(c, clientIP, config.WindowDuration)
+
+		// 在响应头中添加剩余尝试次数信息
+		remaining := config.MaxAttempts - int(newAttempts)
+		if remaining > 0 {
+			c.Header("X-RateLimit-IP-Remaining", strconv.Itoa(remaining))
+		}
+	} else if c.Writer.Status() == 200 {
+		// 登录成功，清除 IP 失败计数和锁定状态
+		userCache.UnlockClientIP(c, clientIP)
 	}
 }
 
@@ -105,7 +120,7 @@ func APIRateLimiter(redisClient *redis.Client, maxRequests int, window time.Dura
 		// 检查是否超过限制
 		if count >= maxRequests {
 			ttl, _ := redisClient.TTL(c, key).Result()
-			response.TooManyRequests(c, fmt.Sprintf("请求频率过高，请在 %d 秒后重试", int(ttl.Seconds())))
+			response.TooManyRequestsFunc(c, fmt.Sprintf("请求频率过高，请在 %d 秒后重试", int(ttl.Seconds())))
 			c.Abort()
 			return
 		}

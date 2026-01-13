@@ -92,7 +92,7 @@ func Register(c *gin.Context) {
     var req dto.RegisterRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         // 自动翻译验证错误
-        response.BadRequest(c, validation.TranslateValidationError(err))
+        response.BadRequestFunc(c, validation.TranslateValidationError(err))
         return
     }
 

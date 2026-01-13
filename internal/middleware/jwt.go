@@ -28,7 +28,7 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		// 从请求头获取token
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			response.Unauthorized(c, "Authorization header required")
+			response.UnauthorizedFunc(c, "Authorization header required")
 			c.Abort()
 			return
 		}
@@ -36,7 +36,7 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		// 验证token格式
 		tokenParts := strings.Split(authHeader, " ")
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			response.Unauthorized(c, "Invalid token format")
+			response.UnauthorizedFunc(c, "Invalid token format")
 			c.Abort()
 			return
 		}
@@ -47,7 +47,7 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		authCache := appCtx.GetAuthCache()
 		isBlacklisted, err := authCache.IsInBlacklistByTokenID(c, tokenString)
 		if err == nil && isBlacklisted {
-			response.Unauthorized(c, "Token has been revoked")
+			response.UnauthorizedFunc(c, "Token has been revoked")
 			c.Abort()
 			return
 		}
@@ -56,14 +56,14 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		jwtUtil := appCtx.GetJWTUtil()
 		claims, err := jwtUtil.ParseAccessToken(tokenString)
 		if err != nil {
-			response.Unauthorized(c, "Invalid or expired token")
+			response.UnauthorizedFunc(c, "Invalid or expired token")
 			c.Abort()
 			return
 		}
 
 		// 验证token是否过期
 		if time.Unix(claims.ExpiresAt.Unix(), 0).Before(time.Now()) {
-			response.Unauthorized(c, "Token has expired")
+			response.UnauthorizedFunc(c, "Token has expired")
 			c.Abort()
 			return
 		}
@@ -77,7 +77,7 @@ func JWTAuthMiddleware(appCtx AppContextProvider) gin.HandlerFunc {
 		authService := appCtx.GetAuthService()
 		userSessionData, err := authService.GetUserSessionData(c, claims.UserID, claims.TenantID, claims.ID)
 		if err != nil {
-			response.Unauthorized(c, "Failed to get user session data")
+			response.SessionGetFailedFunc(c, "Failed to get user session data")
 			c.Abort()
 			return
 		}
@@ -93,14 +93,14 @@ func RoleAuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("userRole")
 		if !exists {
-			response.Forbidden(c, "Role not found in context")
+			response.ForbiddenFunc(c, "Role not found in context")
 			c.Abort()
 			return
 		}
 
 		userRole, ok := role.(string)
 		if !ok {
-			response.Forbidden(c, "Invalid role format")
+			response.ForbiddenFunc(c, "Invalid role format")
 			c.Abort()
 			return
 		}
@@ -115,7 +115,7 @@ func RoleAuthMiddleware(allowedRoles ...string) gin.HandlerFunc {
 		}
 
 		if !allowed {
-			response.Forbidden(c, "Insufficient permissions")
+			response.ForbiddenFunc(c, "Insufficient permissions")
 			c.Abort()
 			return
 		}

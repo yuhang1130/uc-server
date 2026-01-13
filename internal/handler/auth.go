@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -55,7 +56,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			zap.Error(err),
 			zap.String("client_ip", c.ClientIP()),
 		)
-		response.BadRequest(c, "Invalid request: "+getBindingErrorMessage(err))
+		response.ValidationErrorFunc(c, "Invalid request: "+getBindingErrorMessage(err))
 		return
 	}
 
@@ -72,12 +73,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			zap.String("client_ip", c.ClientIP()),
 			zap.Error(err),
 		)
-		// 记录登录失败
-		response.Unauthorized(c, err.Error())
+		// 根据错误类型返回不同的状态码
+		if strings.Contains(err.Error(), "invalid credentials") {
+			response.AuthInvalidCredentialsErrorFunc(c, "用户名或密码错误")
+		} else if strings.Contains(err.Error(), "user has no active tenants") {
+			response.UserTenantMismatchFunc(c, "用户未分配任何租户")
+		} else {
+			response.AuthLoginFailedFunc(c, err.Error())
+		}
 		return
 	}
 
-	response.Success(c, loginResp)
+	response.SuccessFunc(c, loginResp)
 }
 
 // Logout 用户登出
@@ -86,14 +93,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	userSessionData, exists := c.Get("userSessionData")
 	if !exists {
 		h.logger.Warn("未认证用户尝试登出", zap.String("client_ip", c.ClientIP()))
-		response.Unauthorized(c, "User not authenticated")
+		response.UnauthorizedFunc(c, "User not authenticated")
 		return
 	}
 
 	currentUser, ok := userSessionData.(*cache.UserSessionData)
 	if !ok {
 		h.logger.Error("获取当前用户失败", zap.String("client_ip", c.ClientIP()))
-		response.InternalServerError(c, "Failed to get current user")
+		response.InternalServerErrorFunc(c, "Failed to get current user")
 		return
 	}
 
@@ -109,7 +116,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.logger.Warn("Authorization header 无效",
 			zap.Uint64("user_id", currentUser.UserID),
 		)
-		response.BadRequest(c, "Authorization header missing or invalid")
+		response.ValidationErrorFunc(c, "Authorization header missing or invalid")
 		return
 	}
 
@@ -122,7 +129,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 			zap.Uint64("user_id", currentUser.UserID),
 			zap.Error(err),
 		)
-		response.InternalServerError(c, "Failed to get token expiry")
+		response.InternalServerErrorFunc(c, "Failed to get token expiry")
 		return
 	}
 
@@ -137,7 +144,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 				zap.Uint64("user_id", currentUser.UserID),
 				zap.Error(err),
 			)
-			response.InternalServerError(c, "Failed to blacklist token")
+			response.CacheOperationFailedFunc(c, "Failed to blacklist token")
 			return
 		}
 	}
@@ -148,10 +155,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		zap.String("client_ip", c.ClientIP()),
 	)
 
-	// 可选：删除用户的所有 Refresh Token（如果需要全局登出）
-	// 这里暂时只处理当前 Access Token
-
-	response.Success(c, gin.H{
+	response.SuccessFunc(c, gin.H{
 		"message": "Logged out successfully",
 		"user_id": currentUser.UserID,
 	})
@@ -163,14 +167,14 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userSessionData, exists := c.Get("userSessionData")
 	if !exists {
 		h.logger.Warn("未认证用户尝试修改密码", zap.String("client_ip", c.ClientIP()))
-		response.Unauthorized(c, "User not authenticated")
+		response.UnauthorizedFunc(c, "User not authenticated")
 		return
 	}
 
 	currentUser, ok := userSessionData.(*cache.UserSessionData)
 	if !ok {
 		h.logger.Error("获取当前用户失败", zap.String("client_ip", c.ClientIP()))
-		response.InternalServerError(c, "Failed to get current user")
+		response.InternalServerErrorFunc(c, "Failed to get current user")
 		return
 	}
 
@@ -186,15 +190,20 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 			zap.Uint64("user_id", currentUser.UserID),
 			zap.Error(err),
 		)
-		response.BadRequest(c, "Invalid request: "+getBindingErrorMessage(err))
+		response.ValidationErrorFunc(c, "Invalid request: "+getBindingErrorMessage(err))
 		return
 	}
 
 	err := h.userService.ChangePassword(c, currentUser.UserID, req.OldPassword, req.NewPassword)
 	if err != nil {
-		response.InternalServerError(c, err.Error())
+		if err.Error() == "password mismatch" {
+			response.UserPasswordIncorrectFunc(c, "原密码错误")
+		} else {
+			response.InternalServerErrorFunc(c, err.Error())
+		}
 		return
 	}
+
 	// 密码修改成功后，撤销用户的所有登录会话，强制重新登录
 	if err := h.authService.RevokeAllUserSessions(c, currentUser.UserID); err != nil {
 		h.logger.Warn("撤销用户所有会话失败（密码已修改成功）",
@@ -211,7 +220,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		zap.String("client_ip", c.ClientIP()),
 	)
 
-	response.Success(c, gin.H{
+	response.SuccessFunc(c, gin.H{
 		"message": "Password changed successfully. Please login again.",
 	})
 }
