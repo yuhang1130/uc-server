@@ -24,8 +24,8 @@ uc-server/
 │   │   └── context.go           # 自定义上下文，扩展 Gin Context
 │   │
 │   ├── dto/                      # 数据传输对象（Data Transfer Object）
-│   │   ├── auth_dto.go          # 认证相关 DTO（登录、注册请求/响应）
-│   │   └── user_dto.go          # 用户相关 DTO（用户信息传输对象）
+│   │   ├── auth.go          # 认证相关 DTO（登录、注册请求/响应）
+│   │   └── user.go          # 用户相关 DTO（用户信息传输对象）
 │   │
 │   ├── handler/                  # HTTP 处理器层（Controller）
 │   │   ├── auth.go              # 认证接口（登录、注册、登出等）
@@ -49,10 +49,10 @@ uc-server/
 │   │
 │   ├── pkg/                      # 内部公共包
 │   │   ├── cache/               # 缓存层
-│   │   │   ├── auth_cache.go    # 认证相关缓存（Token、会话等）
+│   │   │   ├── auth.go    # 认证相关缓存（Token、会话等）
 │   │   │   ├── cache.go         # 缓存接口定义
 │   │   │   ├── redis.go         # Redis 客户端初始化和操作
-│   │   │   └── user_cache.go    # 用户缓存
+│   │   │   └── user.go    # 用户缓存
 │   │   │
 │   │   ├── database/            # 数据库层
 │   │   │   └── mysql.go         # MySQL 连接初始化（GORM）
@@ -78,13 +78,13 @@ uc-server/
 │   │       └── README.md        # 验证模块说明文档
 │   │
 │   ├── repository/               # 数据访问层（Repository Pattern）
-│   │   ├── base_repository.go   # 基础仓储（通用 CRUD 操作）
-│   │   ├── tenant_user_repository.go # 租户用户关联仓储
-│   │   └── user_repository.go   # 用户仓储（用户数据访问）
+│   │   ├── base.go   # 基础仓储（通用 CRUD 操作）
+│   │   ├── tenant_user.go # 租户用户关联仓储
+│   │   └── user.go   # 用户仓储（用户数据访问）
 │   │
 │   └── service/                  # 业务逻辑层（Service Layer）
-│       ├── auth_service.go      # 认证服务（登录、注册、Token 管理）
-│       └── user_service.go      # 用户服务（用户业务逻辑）
+│       ├── auth.go      # 认证服务（登录、注册、Token 管理）
+│       └── user.go      # 用户服务（用户业务逻辑）
 │
 ├── scripts/                      # 脚本文件
 │   └── init.sql                 # 数据库初始化脚本
