@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -112,6 +114,19 @@ func setupGinEngine(appCtx *AppContext) *gin.Engine {
 
 	// 获取验证器实例并注册自定义验证
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		// 使用 JSON tag 作为字段名（而不是结构体字段名）
+		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+			field := fld.Tag.Get("json")
+			if field == "" {
+				field = fld.Tag.Get("form")
+			}
+			name := strings.SplitN(field, ",", 2)[0]
+			if name == "-" {
+				return ""
+			}
+			return name
+		})
+
 		// 添加自定义验证规则
 		v.RegisterValidation("is_mobile", validateMobile)
 		// 其他验证规则...
