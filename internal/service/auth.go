@@ -13,6 +13,7 @@ import (
 	"github.com/yuhang1130/gin-server/internal/pkg/jwt"
 	"github.com/yuhang1130/gin-server/internal/repository"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -131,7 +132,7 @@ func (s *authService) handleSystemAdminLogin(ctx *gin.Context, user *model.User)
 	}
 
 	// 预热用户缓存
-	s.WarmUpUserCache(ctx, claimsID, &cache.UserSessionData{
+	s.warmUpUserCache(ctx, claimsID, &cache.UserSessionData{
 		UserID:        user.ID,
 		User:          s.buildUserResponse(user),
 		TenantID:      1,
@@ -192,7 +193,7 @@ func (s *authService) handleTenantUserLogin(ctx *gin.Context, user *model.User) 
 	}
 
 	// 预热用户缓存
-	s.WarmUpUserCache(ctx, claimsID, &cache.UserSessionData{
+	s.warmUpUserCache(ctx, claimsID, &cache.UserSessionData{
 		UserID: user.ID,
 		User:   s.buildUserResponse(user),
 
@@ -234,8 +235,8 @@ func (s *authService) buildTenantList(tenantUsers []*repository.TenantUserWithTe
 	return tenants
 }
 
-// WarmUpUserCache 预热用户缓存
-func (s *authService) WarmUpUserCache(
+// warmUpUserCache 预热用户缓存
+func (s *authService) warmUpUserCache(
 	ctx *gin.Context,
 	claimsID string,
 	sessionData *cache.UserSessionData,

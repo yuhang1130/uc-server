@@ -20,7 +20,7 @@ type CreateUserRequest struct {
 	Username string          `json:"username" binding:"required,min=3,max=32,alphanum"`
 	Email    string          `json:"email" binding:"required,email"`
 	Password string          `json:"password" binding:"required,min=8,max=64"`
-	Role     model.UserRoles `json:"role" binding:"omitempty,oneof=user tenant_admin"`
+	Role     model.UserRoles `json:"role" binding:"omitempty,oneof=user tenant_admin super_admin"`
 }
 
 // UpdateUserRequest 更新用户请求
@@ -28,27 +28,27 @@ type UpdateUserRequest struct {
 	ID       uint64            `json:"id" binding:"required,min=1"`
 	Username *string           `json:"username" binding:"omitempty,min=3,max=32,alphanum"`
 	Email    *string           `json:"email" binding:"omitempty,email"`
-	Role     *model.UserRoles  `json:"role" binding:"omitempty,oneof=user tenant_admin"`
+	Role     *model.UserRoles  `json:"role" binding:"omitempty,oneof=user tenant_admin super_admin"`
 	Status   *model.UserStatus `json:"status"`
 }
 
 // GetUserByIDRequest 根据ID获取用户请求
 type GetUserByIDRequest struct {
-	ID uint64 `json:"id" binding:"required,min=1"`
+	ID uint64 `form:"id" binding:"required,min=1"`
 }
 
 // DeleteUserRequest 删除用户请求
 type DeleteUserRequest struct {
-	ID uint64 `json:"id" binding:"required,min=1"`
+	ID uint64 `form:"id" binding:"required,min=1"`
 }
 
 // ListUsersRequest 获取用户列表请求
 type ListUsersRequest struct {
-	Page     int              `form:"page" binding:"required,omitempty,min=1,default=1"`
-	PageSize int              `form:"page_size" binding:"required,omitempty,min=1,max=1000,default=10"`
+	Page     int              `form:"page" binding:"omitempty,min=1"`
+	PageSize int              `form:"page_size" binding:"omitempty,min=1,max=1000"`
 	Search   string           `form:"search" binding:"omitempty,max=100"`
-	Role     model.UserRoles  `form:"role" binding:"omitempty,oneof=user admin"`
-	Status   model.UserStatus `form:"status" binding:"omitempty,oneof=1 0"`
+	Role     model.UserRoles  `form:"role" binding:"omitempty,oneof=user tenant_admin super_admin"`
+	Status   model.UserStatus `form:"status" binding:"omitempty,oneof=0 1"`
 }
 
 // ListUsersResponse 获取用户列表响应

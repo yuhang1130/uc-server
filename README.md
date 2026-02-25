@@ -19,17 +19,21 @@ uc-server/
 │   └── config.yaml               # 应用配置文件（数据库、Redis、JWT等配置）
 │
 ├── internal/                      # 内部私有代码（不对外暴露）
-│   ├── app/                      # 应用程序核心
-│   │   ├── app.go               # 应用初始化、路由注册、中间件配置
-│   │   └── context.go           # 自定义上下文，扩展 Gin Context
+│   ├── app/                      # 应用程序核心（fx 模块汇总）
+│   │   ├── module.go            # fx.Module 入口，汇总所有子模块
+│   │   ├── adapter.go           # AppContextAdapter（实现 middleware.AppContextProvider）
+│   │   ├── server.go            # Gin Engine / HTTP Server / Logger / JWT / Snowflake provider
+│   │   ├── router.go            # 路由注册（registerRoutesFx）
+│   │   └── lifecycle.go         # 服务生命周期管理（startServerFx，优雅关闭）
 │   │
 │   ├── dto/                      # 数据传输对象（Data Transfer Object）
-│   │   ├── auth.go          # 认证相关 DTO（登录、注册请求/响应）
-│   │   └── user.go          # 用户相关 DTO（用户信息传输对象）
+│   │   ├── auth.go              # 认证相关 DTO（登录、注册请求/响应）
+│   │   └── user.go              # 用户相关 DTO（用户信息传输对象）
 │   │
 │   ├── handler/                  # HTTP 处理器层（Controller）
 │   │   ├── auth.go              # 认证接口（登录、注册、登出等）
-│   │   └── user.go              # 用户管理接口（查询、更新、删除等）
+│   │   ├── user.go              # 用户管理接口（查询、更新、删除等）
+│   │   └── module.go            # handler fx.Module
 │   │
 │   ├── middleware/               # 中间件
 │   │   ├── body_size_limit.go   # 请求体大小限制中间件
@@ -49,12 +53,14 @@ uc-server/
 │   │
 │   ├── pkg/                      # 内部公共包
 │   │   ├── cache/               # 缓存层
-│   │   │   ├── auth.go    # 认证相关缓存（Token、会话等）
+│   │   │   ├── auth.go          # 认证相关缓存（Token、会话等）
 │   │   │   ├── cache.go         # 缓存接口定义
+│   │   │   ├── module.go        # cache fx.Module
 │   │   │   ├── redis.go         # Redis 客户端初始化和操作
-│   │   │   └── user.go    # 用户缓存
+│   │   │   └── user.go          # 用户缓存
 │   │   │
 │   │   ├── database/            # 数据库层
+│   │   │   ├── module.go        # database fx.Module
 │   │   │   └── mysql.go         # MySQL 连接初始化（GORM）
 │   │   │
 │   │   ├── jwt/                 # JWT 工具
@@ -78,13 +84,15 @@ uc-server/
 │   │       └── README.md        # 验证模块说明文档
 │   │
 │   ├── repository/               # 数据访问层（Repository Pattern）
-│   │   ├── base.go   # 基础仓储（通用 CRUD 操作）
-│   │   ├── tenant_user.go # 租户用户关联仓储
-│   │   └── user.go   # 用户仓储（用户数据访问）
+│   │   ├── base.go              # 基础仓储（通用 CRUD 操作）
+│   │   ├── module.go            # repository fx.Module
+│   │   ├── tenant_user.go       # 租户用户关联仓储
+│   │   └── user.go              # 用户仓储（用户数据访问）
 │   │
 │   └── service/                  # 业务逻辑层（Service Layer）
-│       ├── auth.go      # 认证服务（登录、注册、Token 管理）
-│       └── user.go      # 用户服务（用户业务逻辑）
+│       ├── auth.go              # 认证服务（登录、注册、Token 管理）
+│       ├── module.go            # service fx.Module
+│       └── user.go              # 用户服务（用户业务逻辑）
 │
 ├── scripts/                      # 脚本文件
 │   └── init.sql                 # 数据库初始化脚本
@@ -106,6 +114,7 @@ uc-server/
 - **数据库**: MySQL (GORM)
 - **缓存**: Redis
 - **认证**: JWT
+- **依赖注入**: go.uber.org/fx
 - **ID 生成**: Snowflake 算法
 - **热重载**: Air
 
@@ -134,6 +143,21 @@ uc-server/
 ### 6. Middleware 层（中间件）
 
 提供横切关注点功能，如认证、日志、限流、跨域等。
+
+### 7. fx 依赖注入
+
+使用 `go.uber.org/fx` 管理所有组件的生命周期和依赖关系。每个层级有独立的 `module.go` 声明自己的 provider，`internal/app/module.go` 作为根模块汇总所有子模块。
+
+```text
+cmd/server/main.go
+  └── fx.New(app.Module).Run()
+        ├── database.Module   → *gorm.DB
+        ├── cache.Module      → *redis.Client, *AuthCache, *UserCache
+        ├── repository.Module → UserRepository, TenantUserRepository
+        ├── service.Module    → AuthService, UserService
+        ├── handler.Module    → *AuthHandler, *UserHandler
+        └── app providers     → Config, Logger, JWTUtil, GinEngine, HTTPServer
+```
 
 ## 多租户设计
 

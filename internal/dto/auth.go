@@ -6,15 +6,15 @@ import (
 
 // RegisterRequest 用户注册请求
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required,omitempty,min=3,max=32,alphanum"`
-	Email    string `json:"email" binding:"required,omitempty,email"`
-	Password string `json:"password" binding:"required,omitempty,min=8,max=64"`
+	Username string `json:"username" binding:"required,min=3,max=32,alphanum"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8,max=64"`
 }
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	Username string `json:"username" binding:"required,omitempty"` // 支持用户名或邮箱
-	Password string `json:"password" binding:"required,omitempty"`
+	Username string `json:"username" binding:"required"` // 支持用户名或邮箱
+	Password string `json:"password" binding:"required"`
 }
 
 type Tenant struct {

@@ -124,6 +124,14 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		zap.String("client_ip", c.ClientIP()),
 	)
 
+	// 设置分页默认值
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 10
+	}
+
 	// 构建筛选条件
 	filter := &repository.UserListFilter{
 		Page:     req.Page,
@@ -179,7 +187,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 
 func (h *UserHandler) GetUserByID(c *gin.Context) {
 	var req dto.GetUserByIDRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindQuery(&req); err != nil {
 		h.logger.Warn("获取用户详情请求参数无效",
 			zap.String("error", err.Error()),
 			zap.String("client_ip", c.ClientIP()),
