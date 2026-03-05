@@ -254,7 +254,7 @@ Redis 缓存设计：
 
 | 方法 | 路径 | 说明 | 认证 |
 |------|------|------|------|
-| POST | `/api/v1/auth/login` | 用户登录 | ❌ |
+| POST | `/api/v1/auth/login` | 用户登录 | ✅ |
 | POST | `/api/v1/auth/logout` | 用户登出 | ✅ |
 | POST | `/api/v1/auth/change-password` | 修改密码 | ✅ |
 
