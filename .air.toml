@@ -1,0 +1,82 @@
+# 项目根目录
+root = "."
+# 测试数据目录，Air 不会监控此目录
+testdata_dir = "testdata"
+# 临时文件目录，用于存放编译后的二进制文件
+tmp_dir = "tmp"
+
+[build]
+  # 运行二进制文件时传递的参数
+  args_bin = []
+  # 编译后的二进制文件路径
+  bin = "./tmp/main"
+  # 构建命令
+  cmd = "go build -o ./tmp/main cmd/server/main.go"
+  # 文件变化后延迟多少毫秒再构建（避免频繁重启）
+  delay = 1000
+  # 排除监控的目录
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "deploy", ".git", ".idea", ".vscode"]
+  # 排除监控的特定文件
+  exclude_file = []
+  # 排除监控的文件正则表达式
+  exclude_regex = ["_test.go", "_gen.go"]
+  # 是否排除未变化的文件
+  exclude_unchanged = false
+  # 是否跟随符号链接
+  follow_symlink = false
+  # 完整的运行命令（为空表示直接运行 bin）
+  full_bin = ""
+  # 额外监控的目录（空数组表示监控所有）
+  include_dir = []
+  # 监控的文件扩展名
+  include_ext = ["go", "yaml", "yml", "toml", "env"]
+  # 额外监控的特定文件
+  include_file = []
+  # 杀死旧进程前的延迟时间
+  kill_delay = "0s"
+  # 构建错误日志文件路径
+  log = "build-errors.log"
+  # 是否使用轮询方式监控文件（false 使用系统事件）
+  poll = false
+  # 轮询间隔（当 poll=true 时生效）
+  poll_interval = 0
+  # 构建后执行的命令
+  post_cmd = []
+  # 构建前执行的命令
+  pre_cmd = []
+  # 是否在构建失败后自动重试
+  rerun = false
+  # 重试延迟（毫秒）
+  rerun_delay = 500
+  # 是否发送 SIGINT 信号停止旧进程（false 表示发送 SIGKILL）
+  send_interrupt = false
+  # 构建错误时是否停止运行
+  stop_on_error = false
+
+[color]
+  # 应用输出的颜色
+  app = ""
+  # 构建信息的颜色
+  build = "yellow"
+  # 主程序信息的颜色
+  main = "magenta"
+  # 运行器信息的颜色
+  runner = "green"
+  # 监控器信息的颜色
+  watcher = "cyan"
+
+[log]
+  # 是否只显示主程序日志
+  main_only = false
+  # 是否在日志中显示时间戳
+  time = false
+
+[misc]
+  # 退出时是否清理临时文件
+  clean_on_exit = true
+
+[screen]
+  # 重新构建时是否清屏
+  clear_on_rebuild =  false
+  # 是否保持滚动位置
+  keep_scroll = true

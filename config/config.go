@@ -1,90 +1,98 @@
 package config
 
 import (
-	"log"
-	"strings"
+	"fmt"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server struct {
-		Port        string `mapstructure:"port"`
-		Mode        string `mapstructure:"mode"`
-		Timeout     int    `mapstructure:"timeout"`
-		CorsAllowed string `mapstructure:"cors_allowed"`
-		MaxBodySize int64  `mapstructure:"max_body_size"` // 最大请求体大小，单位字节
-		IsDev       bool   `mapstructure:"is_dev"`
-		IsQa        bool   `mapstructure:"is_qa"`
-		IsProd      bool   `mapstructure:"is_prod"`
-	} `mapstructure:"server"`
-
-	Database struct {
-		Host     string `mapstructure:"host"`
-		Port     string `mapstructure:"port"`
-		User     string `mapstructure:"user"`
-		Password string `mapstructure:"password"`
-		Name     string `mapstructure:"name"`
-		MaxConns int    `mapstructure:"max_conns"`
-		MaxIdle  int    `mapstructure:"max_idle_conns"`
-	} `mapstructure:"database"`
-
-	Redis struct {
-		Addr     string `mapstructure:"addr"`
-		Password string `mapstructure:"password"`
-		DB       int    `mapstructure:"db"`
-	} `mapstructure:"redis"`
-
-	JWT struct {
-		SecretKey string `mapstructure:"secret_key"`
-		ExpiresIn int    `mapstructure:"expires_in"`
-	} `mapstructure:"jwt"`
-
-	Snowflake struct {
-		NodeID int64 `mapstructure:"node_id"` // 节点ID，范围 0-1023
-	} `mapstructure:"snowflake"`
-
-	Auth struct {
-		RequireEmailVerification bool `mapstructure:"require_email_verification"` // 是否要求邮箱验证后才能登录
-	} `mapstructure:"auth"`
+	App      AppConfig      `mapstructure:"app"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	Redis    RedisConfig    `mapstructure:"redis"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	Log      LogConfig      `mapstructure:"log"`
+	Google   GoogleConfig   `mapstructure:"google"`
+	Github   GithubConfig   `mapstructure:"github"`
 }
 
-func LoadConfig() (*Config, error) {
+type AppConfig struct {
+	Name    string `mapstructure:"name"`
+	Version string `mapstructure:"version"`
+}
+
+type ServerConfig struct {
+	Port        string `mapstructure:"port"`
+	Mode        string `mapstructure:"mode"`
+	Timeout     int    `mapstructure:"timeout"`
+	CorsAllowed string `mapstructure:"cors_allowed"`
+	CookieName  string `mapstructure:"cookie_name"`
+	MaxBodySize int64  `mapstructure:"max_body_size"`
+	IsDev       bool   `mapstructure:"-"`
+	IsQa        bool   `mapstructure:"-"`
+	IsProd      bool   `mapstructure:"-"`
+}
+
+type DatabaseConfig struct {
+	MysqlURL     string `mapstructure:"mysql_url"`
+	MysqlPoolMax int    `mapstructure:"mysql_pool_max"`
+}
+
+type RedisConfig struct {
+	URL     string `mapstructure:"url"`
+	PoolMax int    `mapstructure:"pool_max"`
+}
+
+type JWTConfig struct {
+	SecretKey string `mapstructure:"secret_key"`
+	ExpiresIn int    `mapstructure:"expires_in"`
+}
+
+type LogConfig struct {
+	Dir   string `mapstructure:"dir"`
+	Level string `mapstructure:"level"`
+}
+type GoogleConfig struct {
+	ClientID     string `env:"client_id"`
+	ClientSecret string `env:"client_secret"`
+	RedirectURL  string `env:"redirect_url"`
+}
+
+type GithubConfig struct {
+	ClientID     string `env:"client_id"`
+	ClientSecret string `env:"client_secret"`
+	RedirectURL  string `env:"redirect_url"`
+}
+
+func Load() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./config")
-	viper.AddConfigPath("/etc/app/config")
-	viper.AddConfigPath("$HOME/.app/config")
-
-	// 读取环境变量
+	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	viper.SetDefault("server.port", "8080")
+	viper.SetDefault("server.mode", "debug")
+	viper.SetDefault("server.timeout", 30)
+	viper.SetDefault("server.cors_allowed", "*")
+	viper.SetDefault("jwt.expires_in", 604800)
+	viper.SetDefault("log.dir", "./logs")
+	viper.SetDefault("log.level", "info")
 
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			log.Println("No config file found, using environment variables")
-		} else {
-			return nil, err
-		}
+		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	// 监听配置文件变化
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Println("Config file changed:", e.Name)
-	})
-	viper.WatchConfig()
-
-	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		return nil, err
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	// 设置默认值
-	setDefaults(&config)
-	// log.Printf("Parse Config Success. %+v \n", config)
+	setDefaults(&cfg)
 
-	return &config, nil
+	return &cfg, nil
 }
 
 func setDefaults(config *Config) {
@@ -97,8 +105,11 @@ func setDefaults(config *Config) {
 	if config.Server.MaxBodySize == 0 {
 		config.Server.MaxBodySize = 10 * 1024 * 1024 // 默认 10MB
 	}
-	if config.Snowflake.NodeID == 0 {
-		config.Snowflake.NodeID = 1 // 默认节点 ID 为 1
+	if config.Log.Dir == "" {
+		config.Log.Dir = "./logs"
+	}
+	if config.Log.Level == "" {
+		config.Log.Level = "info"
 	}
 	switch config.Server.Mode {
 	case "debug", "dev":
@@ -111,5 +122,4 @@ func setDefaults(config *Config) {
 	if config.JWT.ExpiresIn == 0 {
 		config.JWT.ExpiresIn = 7 * 24 * 3600 // 默认 7 天
 	}
-	// 其他默认值设置...
 }

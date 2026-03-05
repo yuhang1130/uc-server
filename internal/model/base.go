@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/yuhang1130/gin-server/internal/pkg/snowflake"
+	"github.com/yuhang1130/gin-server/pkg/snowflake"
 	"gorm.io/gorm"
 )
 

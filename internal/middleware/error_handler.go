@@ -1,0 +1,65 @@
+package middleware
+
+import (
+	"errors"
+	"net/http"
+
+	appErrors "github.com/yuhang1130/gin-server/pkg/errors"
+	"github.com/yuhang1130/gin-server/pkg/logger"
+
+	"github.com/gin-contrib/requestid"
+	"github.com/gin-gonic/gin"
+)
+
+// ErrorHandler captures errors and returns a consistent JSON error response.
+func ErrorHandler(logger logger.Logger) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.Next()
+
+		if len(ctx.Errors) > 0 {
+			err := ctx.Errors.Last().Err
+
+			var repErr *appErrors.RepositoryError
+			if errors.As(err, &repErr) {
+				logger.Errorw(
+					"log from middleware error handler",
+					"error", repErr.Message,
+					"request_id", requestid.Get(ctx),
+					"method", ctx.Request.Method,
+					"path", ctx.Request.URL.Path,
+					"route", ctx.FullPath(),
+					"handler", ctx.HandlerName(),
+				)
+
+				ctx.JSON(
+					http.StatusInternalServerError,
+					gin.H{
+						"code":    http.StatusInternalServerError,
+						"message": repErr.Message,
+					},
+				)
+				return
+			}
+
+			var apiErr *appErrors.APIError
+			if errors.As(err, &apiErr) {
+				ctx.JSON(
+					apiErr.Code,
+					gin.H{
+						"code":    apiErr.Code,
+						"message": apiErr.Message,
+					},
+				)
+				return
+			}
+
+			ctx.JSON(
+				http.StatusInternalServerError,
+				gin.H{
+					"code":    http.StatusInternalServerError,
+					"message": err.Error(),
+				},
+			)
+		}
+	}
+}
