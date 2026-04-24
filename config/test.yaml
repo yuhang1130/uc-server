@@ -1,0 +1,39 @@
+app:
+  name: "uc-server"
+  version: "1.0.0"
+server:
+  port: "8090"
+  mode: "production"
+  timeout: 30
+  cors_allowed: "*"
+  cookie_name: "app_cookie_name"
+
+database:
+  mysql_url: "root:mysql123@tcp(127.0.0.1:3306)/gin_db?charset=utf8mb4&parseTime=True&loc=Local"
+  mysql_pool_max: 10
+
+# redis://<user>:<password>@<host>:<port>/<db_number>
+# 没有账号密码时，直接去掉 user:password@ 部分
+redis:
+  url: "redis://127.0.0.1:6379/1"
+  pool_max: 10
+
+jwt:
+  secret_key: "sb3MRHerqNjqjOp0xgAPQPCl6HF3dy5z"
+  expires_in: 604800 # seconds (7 days)
+
+log:
+  dir: "./logs"
+  level: "info"
+
+# Google OAuth2
+google:
+  client_id: "your-google-client-id"
+  client_secret: "your-google-client-secret"
+  redirect_url: "http://localhost:8080/auth/google/callback"
+
+# GitHub OAuth2
+github:
+  client_id: "your-github-client-id"
+  client_secret: "your-github-client-secret"
+  redirect_url: "http://localhost:8080/auth/github/callback"

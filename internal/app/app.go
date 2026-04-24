@@ -11,7 +11,7 @@ import (
 	"github.com/yuhang1130/gin-server/internal/modules"
 	"github.com/yuhang1130/gin-server/internal/router"
 	api_router "github.com/yuhang1130/gin-server/internal/router/api"
-	"github.com/yuhang1130/gin-server/pkg/httpserver"
+	http_server "github.com/yuhang1130/gin-server/pkg/http_server"
 	"github.com/yuhang1130/gin-server/pkg/jwt"
 	"github.com/yuhang1130/gin-server/pkg/logger"
 	"github.com/yuhang1130/gin-server/pkg/mysql"
@@ -59,7 +59,7 @@ func Run(cfg *config.Config) {
 }
 
 func provideLogger(cfg *config.Config) logger.Logger {
-	return logger.New(cfg.Log.Dir, cfg.Log.Level, cfg.Server.IsProd)
+	return logger.New(cfg.Log.Dir, cfg.Log.Level, cfg.Server.Mode.IsProd())
 }
 func provideMysql(cfg *config.Config, logger logger.Logger) (*mysql.MySQL, error) {
 	m, err := mysql.New(cfg.Database.MysqlURL, mysql.MaxPoolSize(cfg.Database.MysqlPoolMax))
@@ -88,14 +88,14 @@ func provideJWT(cfg *config.Config) jwt.JWT {
 		jwt.Secret(cfg.JWT.SecretKey),
 	)
 }
-func provideHTTPServer(cfg *config.Config, engine *gin.Engine) httpserver.Server {
-	return httpserver.New(engine, httpserver.Port(cfg.Server.Port))
+func provideHTTPServer(cfg *config.Config, engine *gin.Engine) http_server.Server {
+	return http_server.New(engine, http_server.Port(cfg.Server.Port))
 }
 func startHTTPServer(
 	lc fx.Lifecycle,
 	sd fx.Shutdowner,
 	logger logger.Logger,
-	httpServer httpserver.Server,
+	httpServer http_server.Server,
 ) {
 	lc.Append(
 		fx.Hook{

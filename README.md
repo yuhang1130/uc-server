@@ -89,7 +89,7 @@ uc-server/
 │   │   ├── api_error.go
 │   │   └── repository_error.go
 │   │
-│   ├── httpserver/                    # HTTP 服务器封装
+│   ├── http_server/                    # HTTP 服务器封装
 │   │   ├── server.go
 │   │   └── options.go
 │   │
@@ -280,19 +280,19 @@ Redis 缓存设计：
 
 ### 环境要求
 
-- Go 1.21+
+- Go 1.25+
 - MySQL 8.0+
 - Redis 6.0+
 
 ### 安装依赖
 
 ```bash
-go mod download
+go mod tidy
 ```
 
 ### 配置文件
 
-编辑 `config/config.yaml`：
+编辑 `config/dev.yaml`：
 
 ```yaml
 app:
@@ -322,28 +322,36 @@ log:
 ### 初始化数据库
 
 ```bash
-mysql -u root -p < scripts/init.sql
+mysql -u root -p < sqls/init.ddl.sql
 ```
 
 ### 运行项目
-
+# 本地开发
 ```bash
-# 开发模式（带热重载）
-air
-
-# 或直接运行
-go run cmd/server/main.go
+  go run cmd/server/main.go           # 默认 dev -> config/dev.yaml
+  go run cmd/server/main.go -env=test # config/test.yaml
+  go run cmd/server/main.go -f config/test.yaml # 指定文件，覆盖 env
+  or
+  # 带热重载
+  air
+  make run RUN_ARGS="-env test"
+  make run RUN_ARGS="-f config/test.yaml"
+```
 
 # 编译生产版本
-go build -o server cmd/server/main.go
-./server
+```bash
+    GOOS=linux GOARCH=amd64 make build
+    GOOS=linux GOARCH=arm64 make build
+    GOOS=windows GOARCH=amd64 make build
 ```
+
 
 ### 使用 Makefile
 
 ```bash
 # 运行项目
 make run
+make run RUN_ARGS="-env test" #读取指定配置
 
 # 编译
 make build
